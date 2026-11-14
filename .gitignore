@@ -1,0 +1,11 @@
+# Files Python creates automatically when it runs your code
+__pycache__/
+*.pyc
+
+# Your virtual environment (the installed libraries, like Flask)
+.venv/
+venv/
+
+# Files your computer or editor creates
+.DS_Store
+.vscode/
