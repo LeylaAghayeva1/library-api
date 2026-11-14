@@ -1,3 +1,4 @@
+import db
 import os
 import re
 import sqlite3
@@ -10,7 +11,7 @@ members_bp = Blueprint("members", __name__)
 
 @members_bp.route("/members", methods=["GET"])
 def list_members():
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     rows = conn.execute("SELECT * FROM members").fetchall()
     conn.close()
     result = []
@@ -21,7 +22,7 @@ def list_members():
 
 @members_bp.route("/members/<int:member_id>", methods=["GET"])
 def get_member(member_id):
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     r = conn.execute("SELECT * FROM members WHERE id = ?", (member_id,)).fetchone()
     conn.close()
     if r is None:
@@ -39,7 +40,7 @@ def create_member():
     member_type = data.get("type", "student")
     if not check(member_type, "member_type"):
         return jsonify({"error": "type must be student or staff"}), 400
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     existing = conn.execute("SELECT * FROM members WHERE email = ?", (data["email"],)).fetchone()
     if existing is not None:
         conn.close()
@@ -56,7 +57,7 @@ def create_member():
 
 @members_bp.route("/members/<int:member_id>/loans", methods=["GET"])
 def member_loans(member_id):
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     m = conn.execute("SELECT * FROM members WHERE id = ?", (member_id,)).fetchone()
     if m is None:
         conn.close()
@@ -92,7 +93,7 @@ def member_loans(member_id):
 
 @members_bp.route("/members/<int:member_id>", methods=["DELETE"])
 def delete_member(member_id):
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     r = conn.execute("SELECT * FROM members WHERE id = ?", (member_id,)).fetchone()
     if r is None:
         conn.close()

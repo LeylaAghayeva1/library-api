@@ -1,10 +1,10 @@
+import db
 import os
 import re
 import sqlite3
 from datetime import date, timedelta
 from helpers import *
 from flask import Blueprint, jsonify, request
-
 loans_bp = Blueprint("loans", __name__)
 
 
@@ -13,7 +13,7 @@ loans_bp = Blueprint("loans", __name__)
 
 @loans_bp.route("/loans", methods=["GET"])
 def list_loans():
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     rows = conn.execute("SELECT * FROM loans").fetchall()
     conn.close()
     result = []
@@ -43,7 +43,7 @@ def list_loans():
 
 @loans_bp.route("/loans/<int:loan_id>", methods=["GET"])
 def get_loan(loan_id):
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     loan = conn.execute("SELECT * FROM loans WHERE id = ?", (loan_id,)).fetchone()
     conn.close()
     if loan is None:
@@ -76,7 +76,7 @@ def create_loan():
     if data.get("due_date") and not check(data["due_date"], "date"):
         return jsonify({"error": "invalid due_date"}), 400
 
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     book = conn.execute("SELECT * FROM books WHERE id = ?", (data["book_id"],)).fetchone()
     if book is None:
         conn.close()
@@ -143,7 +143,7 @@ def create_loan():
 
 @loans_bp.route("/loans/<int:loan_id>/return", methods=["POST"])
 def return_book(loan_id):
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     loan = conn.execute("SELECT * FROM loans WHERE id = ?", (loan_id,)).fetchone()
     if loan is None:
         conn.close()
@@ -185,7 +185,7 @@ def return_book(loan_id):
 
 @loans_bp.route("/loans/<int:loan_id>/renew", methods=["POST"])
 def renew_loan(loan_id):
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     loan = conn.execute("SELECT * FROM loans WHERE id = ?", (loan_id,)).fetchone()
     if loan is None:
         conn.close()
@@ -227,7 +227,7 @@ def renew_loan(loan_id):
 
 @loans_bp.route("/loans/<int:loan_id>/pay-fine", methods=["POST"])
 def pay_fine(loan_id):
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     loan = conn.execute("SELECT * FROM loans WHERE id = ?", (loan_id,)).fetchone()
     if loan is None:
         conn.close()

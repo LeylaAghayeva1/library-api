@@ -1,3 +1,4 @@
+import db
 import os
 import re
 import sqlite3
@@ -12,7 +13,7 @@ book_bp = Blueprint("books", __name__)
 
 @book_bp.route("/books", methods=["GET"])
 def list_books():
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     if request.args.get("available") == "true":
         rows = conn.execute("SELECT * FROM books WHERE available = 1").fetchall()
     else:
@@ -26,7 +27,7 @@ def list_books():
 
 @book_bp.route("/books/<int:book_id>", methods=["GET"])
 def get_book(book_id):
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     r = conn.execute("SELECT * FROM books WHERE id = ?", (book_id,)).fetchone()
     conn.close()
     if r is None:
@@ -41,7 +42,7 @@ def create_book():
         return jsonify({"error": "title and author are required"}), 400
     if not check(data.get("isbn"), "isbn"):
         return jsonify({"error": "invalid isbn"}), 400
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     cur = conn.execute(
         "INSERT INTO books (title, author, isbn, available) VALUES (?, ?, ?, 1)",
         (data["title"], data["author"], data["isbn"]),
@@ -54,7 +55,7 @@ def create_book():
 
 @book_bp.route("/books/<int:book_id>", methods=["DELETE"])
 def delete_book(book_id):
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     r = conn.execute("SELECT * FROM books WHERE id = ?", (book_id,)).fetchone()
     if r is None:
         conn.close()

@@ -1,15 +1,15 @@
+import db
 import os
 import re
 import sqlite3
 from datetime import date, timedelta
 from helpers import *
 from flask import Blueprint, jsonify, request
-
 reports_bp = Blueprint("reports", __name__)
 
 @reports_bp.route("/reports/overdue", methods=["GET"])
 def report_overdue():
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     rows = conn.execute(
         """
         SELECT loans.id, books.title, members.name, loans.due_date
@@ -35,7 +35,7 @@ def report_overdue():
 
 @reports_bp.route("/reports/summary", methods=["GET"])
 def report_summary():
-    conn = sqlite3.connect("library.db")
+    conn = db.connect()
     total_books = conn.execute("SELECT COUNT(*) FROM books").fetchone()[0]
     rows = conn.execute("SELECT * FROM loans").fetchall()
     conn.close()
@@ -49,7 +49,3 @@ def report_summary():
         elif loan[6] == 0:
             outstanding += loan[5]
     return jsonify({"total_books": total_books, "on_loan": on_loan, "fines_outstanding": money(outstanding)})
-
-
-if not os.path.exists("library.db"):
-    init_db()
