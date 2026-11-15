@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from repositories import book_repository, loan_repository, member_repository
-from utils import fines, notifications, validation
+from utils import checks, fines, notifications, validation
 from utils.errors import error
 from utils.fines import money
 
@@ -48,10 +48,6 @@ def current_fine(loan):
     return loan["fine"]
 
 
-def is_overdue(loan):
-    return loan["returned"] == 0 and fines.days_late(loan["due_date"]) > 0
-
-
 # ---------- one function per route ----------
 
 
@@ -60,7 +56,7 @@ def list_loans(only_overdue):
     if only_overdue:
         result = []
         for loan in loans:
-            if is_overdue(loan):
+            if checks.is_overdue(loan):
                 result.append(loan)
         return result
     return loans
@@ -85,13 +81,13 @@ def create_loan(data):
     member = member_repository.get_member(data["member_id"])
     if member is None:
         raise error("member not found", 404)
-    if book["available"] == 0:
+    if not checks.is_available(book):
         raise error("book is not available", 409)
 
     loans = loan_repository.list_loans_for_member(member["id"])
     if total_owed(loans) > 0:
         raise error("member has unpaid fines", 409)
-    if count_open_loans(loans) >= loan_limit(member):
+    if checks.has_reached_limit(count_open_loans(loans), loan_limit(member)):
         raise error("loan limit reached", 409)
 
     today = date.today()
@@ -104,7 +100,7 @@ def create_loan(data):
 
 def return_book(loan_id):
     loan = get_loan(loan_id)
-    if loan["returned"] == 1:
+    if checks.is_returned(loan):
         raise error("loan already returned", 409)
 
     fine = fines.fine_for(loan["due_date"])
@@ -122,11 +118,11 @@ def return_book(loan_id):
 
 def renew_loan(loan_id):
     loan = get_loan(loan_id)
-    if loan["returned"] == 1:
+    if checks.is_returned(loan):
         raise error("loan already returned", 409)
-    if date.fromisoformat(loan["due_date"]) < date.today():
+    if checks.is_overdue(loan):
         raise error("overdue loans cannot be renewed", 409)
-    if loan["renewals"] >= 1:
+    if checks.was_renewed(loan):
         raise error("loan was already renewed", 409)
 
     new_due = (date.fromisoformat(loan["due_date"]) + timedelta(days=LOAN_DAYS)).isoformat()
@@ -140,9 +136,9 @@ def renew_loan(loan_id):
 
 def pay_fine(loan_id):
     loan = get_loan(loan_id)
-    if loan["returned"] == 0:
+    if not checks.is_returned(loan):
         raise error("return the book before paying", 409)
-    if loan["fine"] <= 0 or loan["fine_paid"] == 1:
+    if not checks.has_fine_to_pay(loan):
         raise error("no fine to pay", 409)
 
     loan_repository.mark_fine_paid(loan_id)

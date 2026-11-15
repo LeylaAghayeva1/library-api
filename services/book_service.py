@@ -1,5 +1,5 @@
 from repositories import book_repository
-from utils import validation
+from utils import checks, validation
 from utils.errors import error
 
 
@@ -24,6 +24,6 @@ def create_book(data):
 
 def delete_book(book_id):
     book = get_book(book_id)
-    if book["available"] == 0:
+    if not checks.is_available(book):
         raise error("book is on loan", 409)
     book_repository.delete_book(book_id)
