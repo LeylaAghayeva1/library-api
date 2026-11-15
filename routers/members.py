@@ -35,7 +35,6 @@ def create_member():
     member_type = data.get("type", "student")
     if not check(member_type, "member_type"):
         return jsonify({"error": "type must be student or staff"}), 400
-    conn = db.connect()
     existing = member_repository.get_member_by_email(data["email"])
     if existing is not None:
         return jsonify({"error": "email already registered"}), 409
