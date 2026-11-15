@@ -3,6 +3,8 @@ from helpers import *
 from flask import Blueprint, jsonify, request
 from repositories import loan_repository, member_repository
 from utils import validation
+from utils import fines
+from utils.fines import money
 members_bp = Blueprint("members", __name__)
 
 def member_json(member):
@@ -53,7 +55,7 @@ def member_loans(member_id):
             open_loans += 1
             days_late = (date.today() - date.fromisoformat(loan[3])).days
             if days_late > 0:
-                owed += days_late * 0.5
+                owed += fines.fine_for(loan[3])
         elif loan[6] == 0:
             owed += loan[5]
         loans.append(

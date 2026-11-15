@@ -1,7 +1,8 @@
 from datetime import date, timedelta
 from utils import validation
 from flask import Blueprint, jsonify, request
-
+from utils import fines
+from utils.fines import money
 from helpers import *
 from repositories import book_repository, loan_repository, member_repository
 
@@ -30,7 +31,7 @@ def list_loans():
         current_fine = loan["fine"]
         days_late = (date.today() - date.fromisoformat(loan["due_date"])).days
         if loan["returned"] == 0:
-            current_fine = max(0, days_late) * 0.50
+            current_fine = fines.fine_for(loan["due_date"])
         if request.args.get("overdue") == "true" and (loan["returned"] == 1 or days_late <= 0):
             continue
         item = loan_json(loan)
@@ -46,8 +47,7 @@ def get_loan(loan_id):
         return jsonify({"error": "loan not found"}), 404
     current_fine = loan["fine"]
     if loan["returned"] == 0:
-        days_late = (date.today() - date.fromisoformat(loan["due_date"])).days
-        current_fine = max(0, days_late) * 0.50
+        current_fine = fines.fine_for(loan["due_date"])
     item = loan_json(loan)
     item["current_fine"] = money(current_fine)
     return jsonify(item)
@@ -78,7 +78,7 @@ def create_loan():
             open_loans += 1
             days_late = (date.today() - date.fromisoformat(loan["due_date"])).days
             if days_late > 0:
-                owed += days_late * 0.5
+                owed += fines.fine_for(loan["due_date"])
         elif loan["fine_paid"] == 0:
             owed += loan["fine"]
     if owed > 0:
@@ -107,7 +107,7 @@ def return_book(loan_id):
         return jsonify({"error": "loan already returned"}), 409
 
     days_late = (date.today() - date.fromisoformat(loan["due_date"])).days
-    fine = max(0, days_late) * 0.50
+    fine = fines.fine_for(loan["due_date"])
     loan_repository.mark_returned(loan_id, loan["book_id"], fine)
     member = member_repository.get_member(loan["member_id"])
     book = book_repository.get_book(loan["book_id"])

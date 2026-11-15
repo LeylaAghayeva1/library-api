@@ -2,6 +2,8 @@ from datetime import date, timedelta
 from helpers import *
 from flask import Blueprint, jsonify, request
 from repositories import book_repository, loan_repository, report_repository
+from utils import fines
+from utils.fines import money
 reports_bp = Blueprint("reports", __name__)
 
 @reports_bp.route("/reports/overdue", methods=["GET"])
@@ -12,7 +14,7 @@ def report_overdue():
     for r in rows:
         days_late = (date.today() - date.fromisoformat(r[3])).days
         if days_late > 0:
-            fine = days_late * 0.5
+            fine = fines.fine_for(r[3])
             total += fine
             items.append(
                 {"loan_id": r[0], "title": r[1], "member": r[2], "days_late": days_late, "fine": money(fine)}
@@ -30,7 +32,7 @@ def report_summary():
         if loan[4] == 0:
             on_loan += 1
             days_late = (date.today() - date.fromisoformat(loan[3])).days
-            outstanding += max(0, days_late) * 0.50
+            outstanding += fines.fine_for(loan[3])
         elif loan[6] == 0:
             outstanding += loan[5]
     return jsonify({"total_books": total_books, "on_loan": on_loan, "fines_outstanding": money(outstanding)})

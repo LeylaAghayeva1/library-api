@@ -5,10 +5,6 @@ from datetime import date, timedelta
 from flask import Blueprint, jsonify, request
 
 # ---------- helpers ----------
-def money(x):
-    return round(float(x), 2)
-
-
 def notify(email ,kind, title="", send=True):
     if not send:
         return
