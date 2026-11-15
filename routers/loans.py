@@ -1,9 +1,7 @@
-from datetime import date, timedelta
-from utils import validation
 from flask import Blueprint, jsonify, request
-from utils import fines, notifications
+
+from services import loan_service
 from utils.fines import money
-from repositories import book_repository, loan_repository, member_repository
 
 loans_bp = Blueprint("loans", __name__)
 
@@ -22,139 +20,42 @@ def loan_json(loan):
     }
 
 
+def loan_json_with_fine(loan):
+    item = loan_json(loan)
+    item["current_fine"] = money(loan_service.current_fine(loan))
+    return item
+
+
 @loans_bp.route("/loans", methods=["GET"])
 def list_loans():
-    rows = loan_repository.list_loans()
+    only_overdue = request.args.get("overdue") == "true"
     result = []
-    for loan in rows:
-        current_fine = loan["fine"]
-        days_late = (date.today() - date.fromisoformat(loan["due_date"])).days
-        if loan["returned"] == 0:
-            current_fine = fines.fine_for(loan["due_date"])
-        if request.args.get("overdue") == "true" and (loan["returned"] == 1 or days_late <= 0):
-            continue
-        item = loan_json(loan)
-        item["current_fine"] = money(current_fine)
-        result.append(item)
+    for loan in loan_service.list_loans(only_overdue):
+        result.append(loan_json_with_fine(loan))
     return jsonify(result)
 
 
 @loans_bp.route("/loans/<int:loan_id>", methods=["GET"])
 def get_loan(loan_id):
-    loan = loan_repository.get_loan(loan_id)
-    if loan is None:
-        return jsonify({"error": "loan not found"}), 404
-    current_fine = loan["fine"]
-    if loan["returned"] == 0:
-        current_fine = fines.fine_for(loan["due_date"])
-    item = loan_json(loan)
-    item["current_fine"] = money(current_fine)
-    return jsonify(item)
+    return jsonify(loan_json_with_fine(loan_service.get_loan(loan_id)))
 
 
 @loans_bp.route("/loans", methods=["POST"])
 def create_loan():
     data = request.get_json(silent=True) or {}
-    if not data.get("book_id") or not data.get("member_id"):
-        return jsonify({"error": "book_id and member_id are required"}), 400
-    if data.get("due_date") and not validation.is_valid_date(data["due_date"]):
-        return jsonify({"error": "invalid due_date"}), 400
-
-    book = book_repository.get_book(data["book_id"])
-    if book is None:
-        return jsonify({"error": "book not found"}), 404
-    member = member_repository.get_member(data["member_id"])
-    if member is None:
-        return jsonify({"error": "member not found"}), 404
-    if book["available"] == 0:
-        return jsonify({"error": "book is not available"}), 409
-
-    rows = loan_repository.list_loans_for_member(data["member_id"])
-    owed = 0
-    open_loans = 0
-    for loan in rows:
-        if loan["returned"] == 0:
-            open_loans += 1
-            days_late = (date.today() - date.fromisoformat(loan["due_date"])).days
-            if days_late > 0:
-                owed += fines.fine_for(loan["due_date"])
-        elif loan["fine_paid"] == 0:
-            owed += loan["fine"]
-    if owed > 0:
-        return jsonify({"error": "member has unpaid fines"}), 409
-    limit = 3
-    if member["type"] == "staff":
-        limit = 5
-    if open_loans >= limit:
-        return jsonify({"error": "loan limit reached"}), 409
-
-    today = date.today()
-    due_date = data.get("due_date") or (today + timedelta(days=14)).isoformat()
-    loan = loan_repository.create_loan(data["book_id"], data["member_id"], due_date, today.isoformat())
-
-    notifications.send_email(member["email"], "Book checked out", "You checked out " + book["title"])
-
-    return jsonify(loan_json(loan)), 201
+    return jsonify(loan_json(loan_service.create_loan(data))), 201
 
 
 @loans_bp.route("/loans/<int:loan_id>/return", methods=["POST"])
 def return_book(loan_id):
-    loan = loan_repository.get_loan(loan_id)
-    if loan is None:
-        return jsonify({"error": "loan not found"}), 404
-    if loan["returned"] == 1:
-        return jsonify({"error": "loan already returned"}), 409
-
-    days_late = (date.today() - date.fromisoformat(loan["due_date"])).days
-    fine = fines.fine_for(loan["due_date"])
-    loan_repository.mark_returned(loan_id, loan["book_id"], fine)
-    member = member_repository.get_member(loan["member_id"])
-    book = book_repository.get_book(loan["book_id"])
-    updated = loan_repository.get_loan(loan_id)
-
-    notifications.send_email(member["email"], "Book returned", "You returned " + book["title"] + ". Fine: $" + str(fines.money(fine)))
-
-
-    return jsonify(loan_json(updated))
+    return jsonify(loan_json(loan_service.return_book(loan_id)))
 
 
 @loans_bp.route("/loans/<int:loan_id>/renew", methods=["POST"])
 def renew_loan(loan_id):
-    loan = loan_repository.get_loan(loan_id)
-    if loan is None:
-        return jsonify({"error": "loan not found"}), 404
-    if loan["returned"] == 1:
-        return jsonify({"error": "loan already returned"}), 409
-    if date.fromisoformat(loan["due_date"]) < date.today():
-        return jsonify({"error": "overdue loans cannot be renewed"}), 409
-    if loan["renewals"] >= 1:
-        return jsonify({"error": "loan was already renewed"}), 409
-
-    new_due = (date.fromisoformat(loan["due_date"]) + timedelta(days=14)).isoformat()
-    loan_repository.extend_loan(loan_id, new_due)
-    member = member_repository.get_member(loan["member_id"])
-    book = book_repository.get_book(loan["book_id"])
-    updated = loan_repository.get_loan(loan_id)
-
-    notifications.send_email(member["email"], "Loan renewed", "You renewed " + book["title"])
-
-    return jsonify(loan_json(updated))
+    return jsonify(loan_json(loan_service.renew_loan(loan_id)))
 
 
 @loans_bp.route("/loans/<int:loan_id>/pay-fine", methods=["POST"])
 def pay_fine(loan_id):
-    loan = loan_repository.get_loan(loan_id)
-    if loan is None:
-        return jsonify({"error": "loan not found"}), 404
-    if loan["returned"] == 0:
-        return jsonify({"error": "return the book before paying"}), 409
-    if loan["fine"] <= 0 or loan["fine_paid"] == 1:
-        return jsonify({"error": "no fine to pay"}), 409
-
-    loan_repository.mark_fine_paid(loan_id)
-    member = member_repository.get_member(loan["member_id"])
-    updated = loan_repository.get_loan(loan_id)
-
-    notifications.send_email(member["email"], "Fine paid", "We received $" + str(fines.money(loan["fine"])) + "")
-
-    return jsonify(loan_json(updated))
+    return jsonify(loan_json(loan_service.pay_fine(loan_id)))
