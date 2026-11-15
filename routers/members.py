@@ -5,29 +5,24 @@ import sqlite3
 from datetime import date, timedelta
 from helpers import *
 from flask import Blueprint, jsonify, request
-
+from repositories import member_repository
 members_bp = Blueprint("members", __name__)
 
+def member_json(member):
+    return {"id": member["id"], "name": member["name"], "email": member["email"], "type": member["type"]}
 
 @members_bp.route("/members", methods=["GET"])
 def list_members():
-    conn = db.connect()
-    rows = conn.execute("SELECT * FROM members").fetchall()
-    conn.close()
-    result = []
-    for r in rows:
-        result.append({"id": r[0], "name": r[1], "email": r[2], "type": r[3]})
-    return jsonify(result)
+    members = member_repository.list_members()
+    return jsonify([member_json(member) for member in members])
 
 
 @members_bp.route("/members/<int:member_id>", methods=["GET"])
 def get_member(member_id):
-    conn = db.connect()
-    r = conn.execute("SELECT * FROM members WHERE id = ?", (member_id,)).fetchone()
-    conn.close()
-    if r is None:
+    member = member_repository.get_member(member_id)
+    if not member:
         return jsonify({"error": "member not found"}), 404
-    return jsonify({"id": r[0], "name": r[1], "email": r[2], "type": r[3]})
+    return jsonify(member_json(member))
 
 
 @members_bp.route("/members", methods=["POST"])
@@ -41,24 +36,17 @@ def create_member():
     if not check(member_type, "member_type"):
         return jsonify({"error": "type must be student or staff"}), 400
     conn = db.connect()
-    existing = conn.execute("SELECT * FROM members WHERE email = ?", (data["email"],)).fetchone()
+    existing = member_repository.get_member_by_email(data["email"])
     if existing is not None:
-        conn.close()
         return jsonify({"error": "email already registered"}), 409
-    cur = conn.execute(
-        "INSERT INTO members (name, email, type) VALUES (?, ?, ?)",
-        (data["name"], data["email"], member_type),
-    )
-    conn.commit()
-    r = conn.execute("SELECT * FROM members WHERE id = ?", (cur.lastrowid,)).fetchone()
-    conn.close()
-    return jsonify({"id": r[0], "name": r[1], "email": r[2], "type": r[3]}), 201
+    r = member_repository.create_member(data["name"], data["email"], member_type)
+    return jsonify(member_json(r)), 201
 
 
 @members_bp.route("/members/<int:member_id>/loans", methods=["GET"])
 def member_loans(member_id):
     conn = db.connect()
-    m = conn.execute("SELECT * FROM members WHERE id = ?", (member_id,)).fetchone()
+    m = member_repository.get_member(member_id)
     if m is None:
         conn.close()
         return jsonify({"error": "member not found"}), 404
@@ -91,15 +79,15 @@ def member_loans(member_id):
         remaining = 3 - open_loans
     return jsonify({"loans": loans, "total_owed": money(owed), "loans_remaining": remaining})
 
-@members_bp.route("/members/<int:member_id>", methods=["DELETE"])
-def delete_member(member_id):
-    conn = db.connect()
-    r = conn.execute("SELECT * FROM members WHERE id = ?", (member_id,)).fetchone()
-    if r is None:
-        conn.close()
-        return jsonify({"error": "member not found"}), 404
-    conn.execute("DELETE FROM members WHERE id = ?", (member_id,))
-    conn.commit()
-    conn.close()
-    return "", 204
+# @members_bp.route("/members/<int:member_id>", methods=["DELETE"])
+# def delete_member(member_id):
+#     conn = db.connect()
+#     r = conn.execute("SELECT * FROM members WHERE id = ?", (member_id,)).fetchone()
+#     if r is None:
+#         conn.close()
+#         return jsonify({"error": "member not found"}), 404
+#     conn.execute("DELETE FROM members WHERE id = ?", (member_id,))
+#     conn.commit()
+#     conn.close()
+#     return "", 204
 
