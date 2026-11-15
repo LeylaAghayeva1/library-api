@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-
+from utils import validation
 from helpers import *
 from repositories import book_repository
 
@@ -32,7 +32,7 @@ def create_book():
     data = request.get_json(silent=True) or {}
     if not data.get("title") or not data.get("author"):
         return jsonify({"error": "title and author are required"}), 400
-    if not check(data.get("isbn"), "isbn"):
+    if not validation.is_valid_isbn(data.get("isbn")):
         return jsonify({"error": "invalid isbn"}), 400
     r = book_repository.create_book(data["title"], data["author"], data["isbn"])
     return jsonify(book_json(r)), 201

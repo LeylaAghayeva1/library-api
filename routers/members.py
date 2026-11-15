@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from helpers import *
 from flask import Blueprint, jsonify, request
 from repositories import loan_repository, member_repository
+from utils import validation
 members_bp = Blueprint("members", __name__)
 
 def member_json(member):
@@ -26,10 +27,10 @@ def create_member():
     data = request.get_json(silent=True) or {}
     if not data.get("name"):
         return jsonify({"error": "name is required"}), 400
-    if not check(data.get("email"), "email"):
+    if not validation.is_valid_email(data.get("email")):
         return jsonify({"error": "invalid email"}), 400
     member_type = data.get("type", "student")
-    if not check(member_type, "member_type"):
+    if not validation.is_valid_member_type(member_type):
         return jsonify({"error": "type must be student or staff"}), 400
     existing = member_repository.get_member_by_email(data["email"])
     if existing is not None:

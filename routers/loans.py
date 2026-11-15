@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-
+from utils import validation
 from flask import Blueprint, jsonify, request
 
 from helpers import *
@@ -58,7 +58,7 @@ def create_loan():
     data = request.get_json(silent=True) or {}
     if not data.get("book_id") or not data.get("member_id"):
         return jsonify({"error": "book_id and member_id are required"}), 400
-    if data.get("due_date") and not check(data["due_date"], "date"):
+    if data.get("due_date") and not validation.is_valid_date(data["due_date"]):
         return jsonify({"error": "invalid due_date"}), 400
 
     book = book_repository.get_book(data["book_id"])
