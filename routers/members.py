@@ -5,7 +5,7 @@ import sqlite3
 from datetime import date, timedelta
 from helpers import *
 from flask import Blueprint, jsonify, request
-from repositories import member_repository
+from repositories import loan_repository, member_repository
 members_bp = Blueprint("members", __name__)
 
 def member_json(member):
@@ -44,13 +44,10 @@ def create_member():
 
 @members_bp.route("/members/<int:member_id>/loans", methods=["GET"])
 def member_loans(member_id):
-    conn = db.connect()
     m = member_repository.get_member(member_id)
     if m is None:
-        conn.close()
         return jsonify({"error": "member not found"}), 404
-    rows = conn.execute("SELECT * FROM loans WHERE member_id = ?", (member_id,)).fetchall()
-    conn.close()
+    rows = loan_repository.list_loans_for_member(member_id)    
     owed = 0
     open_loans = 0
     loans = []
