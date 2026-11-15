@@ -1,25 +1,12 @@
-import db
-import os
-import re
-import sqlite3
 from datetime import date, timedelta
 from helpers import *
 from flask import Blueprint, jsonify, request
+from repositories import book_repository, loan_repository, report_repository
 reports_bp = Blueprint("reports", __name__)
 
 @reports_bp.route("/reports/overdue", methods=["GET"])
 def report_overdue():
-    conn = db.connect()
-    rows = conn.execute(
-        """
-        SELECT loans.id, books.title, members.name, loans.due_date
-        FROM loans
-        JOIN books ON books.id = loans.book_id
-        JOIN members ON members.id = loans.member_id
-        WHERE loans.returned = 0
-        """
-    ).fetchall()
-    conn.close()
+    rows = report_repository.list_open_loans_with_details()
     items = []
     total = 0
     for r in rows:
@@ -35,10 +22,8 @@ def report_overdue():
 
 @reports_bp.route("/reports/summary", methods=["GET"])
 def report_summary():
-    conn = db.connect()
-    total_books = conn.execute("SELECT COUNT(*) FROM books").fetchone()[0]
-    rows = conn.execute("SELECT * FROM loans").fetchall()
-    conn.close()
+    total_books = book_repository.count_books()
+    rows = loan_repository.list_loans()
     on_loan = 0
     outstanding = 0
     for loan in rows:
