@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
-from utils import validation
-from repositories import book_repository
-from utils.errors import error
+
+from services import book_service
+
 book_bp = Blueprint("books", __name__)
 
 
@@ -11,38 +11,25 @@ def book_json(book):
 
 @book_bp.route("/books", methods=["GET"])
 def list_books():
-    rows = book_repository.list_books(request.args.get("available") == "true")
+    only_available = request.args.get("available") == "true"
     result = []
-    for r in rows:
-        result.append(book_json(r))
+    for book in book_service.list_books(only_available):
+        result.append(book_json(book))
     return jsonify(result)
 
 
 @book_bp.route("/books/<int:book_id>", methods=["GET"])
 def get_book(book_id):
-    r = book_repository.get_book(book_id)
-    if r is None:
-        raise error("book not found", 404)
-    return jsonify(book_json(r))
+    return jsonify(book_json(book_service.get_book(book_id)))
 
 
 @book_bp.route("/books", methods=["POST"])
 def create_book():
     data = request.get_json(silent=True) or {}
-    if not data.get("title") or not data.get("author"):
-        raise error("title and author are required", 400)
-    if not validation.is_valid_isbn(data.get("isbn")):
-        raise error("invalid isbn", 400)
-    r = book_repository.create_book(data["title"], data["author"], data["isbn"])
-    return jsonify(book_json(r)), 201
+    return jsonify(book_json(book_service.create_book(data))), 201
 
 
 @book_bp.route("/books/<int:book_id>", methods=["DELETE"])
 def delete_book(book_id):
-    r = book_repository.get_book(book_id)
-    if r is None:
-        raise error("book not found", 404)
-    if r["available"] == 0:
-        raise error("book is on loan", 409)
-    book_repository.delete_book(book_id)
+    book_service.delete_book(book_id)
     return "", 204
