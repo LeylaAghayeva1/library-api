@@ -69,8 +69,16 @@ Your instructor will give you a new requirement. Implement it in your refactored
 ## Questions to answer
 
 1. Which module is the most cohesive? Describe its one job in a sentence.
+
+utils/fines.py is the most cohesive module. Its one job is to calculate late fines: how many days a loan is late and how much that costs at $0.50 per day. Everything in that file is about fines (FINE_PER_DAY, days_late, fine_for, money). It doesn’t know about HTTP, the database, emails or members. If the fine rule changes, this is the only file you open.
+
 2. Which dependency did you remove, and what can now change independently because of that?
+
+Before, every route opened library.db and ran SQL itself. Now only db.py opens the database, and only the repositories run SQL. Because of that, the database can change (a new file name, a new table design, or even a different database) without changing any routes or services.
+
 3. What coupling remains, and why did you accept it?
+
+member_service and report_service still import loan_service. We accepted this because the “how much does a member owe” rule (total_owed) and the loan limit rule live in loan_service, and the other services need them. If each service had its own copy of these rules, we would be back to the duplication problem: changing a rule would mean editing several files, and they could start giving different answers.
 
 ## API reference
 
