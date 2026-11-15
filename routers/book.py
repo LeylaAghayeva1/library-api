@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from utils import validation
 from repositories import book_repository
-
+from utils.errors import error
 book_bp = Blueprint("books", __name__)
 
 
@@ -22,7 +22,7 @@ def list_books():
 def get_book(book_id):
     r = book_repository.get_book(book_id)
     if r is None:
-        return jsonify({"error": "book not found"}), 404
+        raise error("book not found", 404)
     return jsonify(book_json(r))
 
 
@@ -30,9 +30,9 @@ def get_book(book_id):
 def create_book():
     data = request.get_json(silent=True) or {}
     if not data.get("title") or not data.get("author"):
-        return jsonify({"error": "title and author are required"}), 400
+        raise error("title and author are required", 400)
     if not validation.is_valid_isbn(data.get("isbn")):
-        return jsonify({"error": "invalid isbn"}), 400
+        raise error("invalid isbn", 400)
     r = book_repository.create_book(data["title"], data["author"], data["isbn"])
     return jsonify(book_json(r)), 201
 
@@ -41,8 +41,8 @@ def create_book():
 def delete_book(book_id):
     r = book_repository.get_book(book_id)
     if r is None:
-        return jsonify({"error": "book not found"}), 404
+        raise error("book not found", 404)
     if r["available"] == 0:
-        return jsonify({"error": "book is on loan"}), 409
+        raise error("book is on loan", 409)
     book_repository.delete_book(book_id)
     return "", 204

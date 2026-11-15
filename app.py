@@ -1,16 +1,16 @@
 import db
 import os
-import re
-import sqlite3
-from datetime import date, timedelta
 from flask import Flask, jsonify, request
 from routers.book import book_bp
 from routers.members import members_bp
 from routers.loans import loans_bp
 from routers.reports import reports_bp
-from utils import validation, fines, notifications
 from db import init_db
+from utils.errors import LibraryError
 app = Flask(__name__)
+@app.errorhandler(LibraryError)
+def handle_library_error(err):
+    return jsonify({"error": err.message}), err.status
 app.register_blueprint(book_bp)
 app.register_blueprint(members_bp)
 app.register_blueprint(loans_bp)
