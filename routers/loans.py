@@ -1,9 +1,8 @@
 from datetime import date, timedelta
 from utils import validation
 from flask import Blueprint, jsonify, request
-from utils import fines
+from utils import fines, notifications
 from utils.fines import money
-from helpers import *
 from repositories import book_repository, loan_repository, member_repository
 
 loans_bp = Blueprint("loans", __name__)
@@ -93,7 +92,7 @@ def create_loan():
     due_date = data.get("due_date") or (today + timedelta(days=14)).isoformat()
     loan = loan_repository.create_loan(data["book_id"], data["member_id"], due_date, today.isoformat())
 
-    notify(member["email"], "checkout", book["title"])
+    notifications.send_email(member["email"], "Book checked out", "You checked out " + book["title"])
 
     return jsonify(loan_json(loan)), 201
 
@@ -113,11 +112,8 @@ def return_book(loan_id):
     book = book_repository.get_book(loan["book_id"])
     updated = loan_repository.get_loan(loan_id)
 
-    with open("outbox.txt", "a") as f:
-        f.write(
-            "TO: " + member["email"] + " | SUBJECT: Book returned | BODY: You returned " + book["title"]
-            + ". Fine: $" + str(money(fine)) + "\n"
-        )
+    notifications.send_email(member["email"], "Book returned", "You returned " + book["title"] + ". Fine: $" + str(fines.money(fine)))
+
 
     return jsonify(loan_json(updated))
 
@@ -140,7 +136,7 @@ def renew_loan(loan_id):
     book = book_repository.get_book(loan["book_id"])
     updated = loan_repository.get_loan(loan_id)
 
-    notify(member["email"], "renew", book["title"])
+    notifications.send_email(member["email"], "Loan renewed", "You renewed " + book["title"])
 
     return jsonify(loan_json(updated))
 
@@ -159,9 +155,6 @@ def pay_fine(loan_id):
     member = member_repository.get_member(loan["member_id"])
     updated = loan_repository.get_loan(loan_id)
 
-    with open("outbox.txt", "a") as f:
-        f.write(
-            "TO: " + member["email"] + " | SUBJECT: Fine paid | BODY: We received $" + str(money(loan["fine"])) + "\n"
-        )
+    notifications.send_email(member["email"], "Fine paid", "We received $" + str(fines.money(loan["fine"])) + "")
 
     return jsonify(loan_json(updated))

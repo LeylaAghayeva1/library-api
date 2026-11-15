@@ -8,7 +8,7 @@ from routers.book import book_bp
 from routers.members import members_bp
 from routers.loans import loans_bp
 from routers.reports import reports_bp
-from helpers import *
+from utils import validation, fines, notifications
 from db import init_db
 app = Flask(__name__)
 app.register_blueprint(book_bp)
